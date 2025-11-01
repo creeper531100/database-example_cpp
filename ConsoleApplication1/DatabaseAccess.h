@@ -19,7 +19,10 @@ public:
     DatabaseAccess&& connect(const std::wstring& server, const std::wstring& uid,
                              const std::wstring& pwd);
     DatabaseAccess&& set_database(const std::wstring& database);
-    SaoFU::DataTable command(const std::wstring& query);
+
+    SaoFU::DataTable command(const std::wstring& query, std::wstring param_name, ...);
+    SaoFU::DataTable procedure(const std::wstring& procedure_name, std::wstring param_name, ...);
+    SaoFU::DataTable command(const std::wstring& query, const std::initializer_list<std::wstring>& params = {});
     void disconnect();
     ~DatabaseAccess();
 

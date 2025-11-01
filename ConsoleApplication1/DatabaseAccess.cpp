@@ -9,6 +9,7 @@
 #include <string>
 #include <algorithm>
 #include <iomanip>
+#include <sstream>
 
 #include "DataBaseException.h"
 
@@ -139,15 +140,123 @@ DatabaseAccess&& DatabaseAccess::set_database(const std::wstring& database) {
     return std::move(*this);
 }
 
+SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::wstring param_name, ...) {
+    std::wistringstream ss(param_name);
+    std::wstring token;
+    std::vector<std::wstring> tokens;
+    while (std::getline(ss, token, L',')) {
+        tokens.push_back(token);
+    }
+
+    std::vector<std::wstring> params;
+    params.reserve(tokens.size());
+
+    va_list args;
+    va_start(args, param_name);
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const wchar_t* arg = va_arg(args, const wchar_t*);
+        params.emplace_back(arg);
+    }
+    va_end(args);
+
+    size_t max_len = std::max_element(params.begin(), params.end(),
+        [](const auto& a, const auto& b) {
+            return a.size() < b.size();
+        })->size();
+
+    std::wostringstream out;
+
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        if (i > 0) out << L",";
+        out << L'@' << tokens[i] << L" nvarchar(" << max_len << L")";
+    }
+    std::wstring declare = out.str();
+
+    out.str(L"");
+    out.clear();
+
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        if (i > 0) out << L",";
+        out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
+    }
+
+    std::wstring values = out.str();
+    std::wstring exec_query = L"EXEC sp_executesql N'" + query + L"', N'" + declare + L"', " + values;
+
+    return command(exec_query);
+}
+
+SaoFU::DataTable DatabaseAccess::procedure(const std::wstring& procedure_name, const std::wstring param_name, ...) {
+    std::wistringstream ss(param_name);
+    std::wstring token;
+    std::vector<std::wstring> tokens;
+    while (std::getline(ss, token, L',')) {
+        tokens.push_back(token);
+    }
+
+    std::vector<std::wstring> params;
+    params.reserve(tokens.size());
+
+    va_list args;
+    va_start(args, param_name);
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const wchar_t* arg = va_arg(args, const wchar_t*);
+        params.emplace_back(arg);
+    }
+    va_end(args);
+
+    std::wostringstream out;
+
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        if (i > 0) out << L",";
+        out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
+    }
+
+    std::wstring values = out.str();
+    std::wstring exec_query = L"EXEC " + procedure_name + L" " + values;
+
+    return command(exec_query);
+}
+
 // **執行 SQL 指令**
-SaoFU::DataTable DatabaseAccess::command(const std::wstring& query) {
+SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::initializer_list<std::wstring>& params) {
+    StmtHandle h_stmt(h_dbc);
+
+    // 1) Prepare：使用 '?' 位置參數
+    if (!SQL_SUCCEEDED(SQLPrepareW(h_stmt, (SQLWCHAR*)query.c_str(), SQL_NTS))) {
+        throw DataBaseException(L"SQLPrepareW failed", h_stmt, SQL_HANDLE_STMT);
+    }
+
+    // 2) 綁定所有參數
+    std::vector<SQLLEN> ind(params.size(), SQL_NTS);
+    SQLUSMALLINT i = 0;
+    for (const auto& row : params) {
+        SQLRETURN ret = SQLBindParameter(
+            h_stmt,
+            (SQLUSMALLINT)(i + 1),
+            SQL_PARAM_INPUT,
+            SQL_C_WCHAR,
+            SQL_WVARCHAR,
+            (SQLULEN)std::max<size_t>(row.size(), 1),
+            0,
+            (SQLPOINTER)row.c_str(),
+            0,
+            &ind[i]
+        );
+
+        if (!SQL_SUCCEEDED(ret)) {
+            throw DataBaseException(L"SQLBindParameter failed", h_stmt, SQL_HANDLE_STMT);
+        }
+        ++i; // 綁定完再遞增，避免 off-by-one
+    }
+
+    // 3) 執行
+    if (!SQL_SUCCEEDED(SQLExecute(h_stmt))) {
+        throw DataBaseException(L"SQLExecute failed", h_stmt, SQL_HANDLE_STMT);
+    }
+
     std::vector<SaoFU::ColumnMeta> col_meta;
     SaoFU::DataTable table;
-
-    StmtHandle h_stmt(h_dbc);
-    if (!SQL_SUCCEEDED(SQLExecDirectW(h_stmt, (SQLWCHAR*)query.c_str(), SQL_NTS))) {
-        throw DataBaseException(L"Fail!!!", h_stmt, SQL_HANDLE_STMT);
-    }
 
     SQLSMALLINT col_count = 0;
     SQLNumResultCols(h_stmt, &col_count);
@@ -158,13 +267,13 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query) {
             SQLWCHAR col_name[128] = {};
             SaoFU::ColumnMeta meta{};
             SQLDescribeColW(
-                h_stmt, 
-                col, 
-                col_name, 
+                h_stmt,
+                col,
+                col_name,
                 sizeof(col_name) / sizeof(SQLWCHAR),
-                nullptr, 
+                nullptr,
                 &meta.data_type,
-                &meta.column_size, 
+                &meta.column_size,
                 &meta.decimal_digits,
                 &meta.nullable
             );
@@ -227,6 +336,7 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query) {
 
     return table;
 }
+
 
 // **斷開連接**
 void DatabaseAccess::disconnect() {

@@ -70,7 +70,7 @@ DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID cont
         PEVT_VARIANT pRenderedValues = (PEVT_VARIANT)buffer.data();
 
         if (!EvtRender(hContext, hEvent, EvtRenderEventValues, dwBufferUsed, pRenderedValues, &dwBufferUsed,
-                       &dwPropertyCount)) {
+            &dwPropertyCount)) {
             EvtClose(hContext);
             return GetLastError();
         }
@@ -107,15 +107,15 @@ DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID cont
 
         // 格式化 SQL 插入語句
         swprintf_s(&insertQuery[0], querySize,
-                   L"INSERT INTO event.dbo.even "
-                   L"([關鍵字], [日期和時間], [事件識別碼], [來源], [工作類別], [內容], [LogDate]) "
-                   L"VALUES (N'%s', '%s', %d, N'%s', N'%s', N'%s', SYSDATETIME())",
-                   MessageKeyword.c_str(),
-                   file_time.c_str(),
-                   pRenderedValues[EvtSystemEventID].UInt16Val,
-                   MessageTask.c_str(),
-                   MessageKeyword.c_str(), 
-                   MessageEvent.c_str());
+            L"INSERT INTO event.dbo.even "
+            L"([關鍵字], [日期和時間], [事件識別碼], [來源], [工作類別], [內容], [LogDate]) "
+            L"VALUES (N'%s', '%s', %d, N'%s', N'%s', N'%s', SYSDATETIME())",
+            MessageKeyword.c_str(),
+            file_time.c_str(),
+            pRenderedValues[EvtSystemEventID].UInt16Val,
+            MessageTask.c_str(),
+            MessageKeyword.c_str(),
+            MessageEvent.c_str());
 
         //MessageBoxW(0, insertQuery.c_str(), 0, 0);
         SaoFU::DataTable data = ((DatabaseAccess*)context)->command(insertQuery);
@@ -155,9 +155,19 @@ int main() {
     DA->connect(L"DESKTOP-SO1AP2J", L"sa", L"Ww920626@")
         .set_database(L"event");
 
-    //SaoFU::DataTable tb = DA->command(L"select * from even with (nolock)");
-    //std::wstring str = tb[0][L"工作類別"].to_string();
-    //std::wcout << str << std::endl;
+    const wchar_t* query_string = LR"(
+        SELECT *
+        FROM [even] WITH (NOLOCK)
+        WHERE 工作類別 = @Type
+          AND id = @id
+        ORDER BY [LogDate] DESC
+    )";
+
+    SaoFU::DataTable tb = DA->command(query_string, L"Type,id", L"稽核成功", L"5058");
+    std::wcout << tb[0][L"內容"].to_string() << std::endl;
+
+    tb = DA->procedure(L"tblEAP_Procedure", L"Type,id", L"傳統", L"6518");
+    std::wcout << tb[0][L"內容"].to_string() << std::endl;
 
     EVT_HANDLE hSubscription = EvtSubscribe(
         NULL,
