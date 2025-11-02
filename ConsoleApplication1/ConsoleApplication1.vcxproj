@@ -131,6 +131,7 @@
     <ClCompile Include="DatabaseAccess.cpp" />
     <ClCompile Include="DataBaseException.cpp" />
     <ClCompile Include="DataTable.cpp" />
+    <ClCompile Include="EmitValue.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DatabaseAccess.h" />

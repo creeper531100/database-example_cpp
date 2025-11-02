@@ -86,7 +86,10 @@ wstring DataCell::to_string() const {
 
     case SQL_TYPE_DATE: {
         const DATE_STRUCT* d = (const DATE_STRUCT*)buffer.data();
-        SYSTEMTIME st{}; st.wYear = d->year; st.wMonth = d->month; st.wDay = d->day;
+        SYSTEMTIME st{};
+        st.wYear = d->year;
+        st.wMonth = d->month;
+        st.wDay = d->day;
         wchar_t buf[64];
         if (GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, buf, 64, nullptr)) return buf;
         return L"(Invalid DATE)";
@@ -94,7 +97,10 @@ wstring DataCell::to_string() const {
 
     case SQL_TYPE_TIME: {
         const TIME_STRUCT* t = (const TIME_STRUCT*)buffer.data();
-        SYSTEMTIME st{}; st.wHour = t->hour; st.wMinute = t->minute; st.wSecond = t->second;
+        SYSTEMTIME st{};
+        st.wHour = t->hour;
+        st.wMinute = t->minute;
+        st.wSecond = t->second;
         wchar_t buf[64];
         if (GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, buf, 64)) return buf;
         return L"(Invalid TIME)";
@@ -103,13 +109,21 @@ wstring DataCell::to_string() const {
     case SQL_TYPE_TIMESTAMP: {
         const TIMESTAMP_STRUCT* ts = (const TIMESTAMP_STRUCT*)buffer.data();
         SYSTEMTIME st{};
-        st.wYear = ts->year; st.wMonth = ts->month; st.wDay = ts->day;
-        st.wHour = ts->hour; st.wMinute = ts->minute; st.wSecond = ts->second;
+        st.wYear = ts->year;
+        st.wMonth = ts->month;
+        st.wDay = ts->day;
+        st.wHour = ts->hour;
+        st.wMinute = ts->minute;
+        st.wSecond = ts->second;
         st.wMilliseconds = (WORD)(ts->fraction / 1000000u);
-        wchar_t date_buf[64], time_buf[64];
+
+        wchar_t date_buf[64];
+        wchar_t time_buf[64];
         if (GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, date_buf, 64, nullptr) &&
             GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, time_buf, 64)) {
-            wstring result = date_buf; result += L" "; result += time_buf; return result;
+            wchar_t result_buf[128];
+            swprintf(result_buf, 128, L"%s %s.%03d", date_buf, time_buf, st.wMilliseconds);
+            return result_buf;
         }
         return L"(Invalid TIMESTAMP)";
     }
@@ -119,18 +133,25 @@ wstring DataCell::to_string() const {
     case SQL_LONGVARBINARY:
     case 98: {
         wstringstream ss; ss << L"0x" << hex << setfill(L'0');
-        for (BYTE b : buffer) ss << setw(2) << static_cast<int>(b);
+        for (BYTE b : buffer) {
+            ss << setw(2) << b;
+        }
         return ss.str();
     }
 
-    case SQL_INTEGER:   return to_wstring(get<int>());
-    case SQL_SMALLINT:  return to_wstring(get<short>());
-    case SQL_BIGINT:    return to_wstring(get<long long>());
+    case SQL_INTEGER:
+        return to_wstring(get<int>());
+    case SQL_SMALLINT:
+        return to_wstring(get<short>());
+    case SQL_BIGINT:
+        return to_wstring(get<long long>());
+
     case SQL_DOUBLE:
     case SQL_FLOAT:
-    case SQL_REAL:      return to_wstring(get<double>());
-    case SQL_BIT:       return get<unsigned char>() ? L"true" : L"false";
-
+    case SQL_REAL:
+        return to_wstring(get<double>());
+    case SQL_BIT:
+        return get<unsigned char>() ? L"true" : L"false";
     default:
         return L"(Unsupported Type)";
     }

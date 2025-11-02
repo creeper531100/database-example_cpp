@@ -11,16 +11,26 @@
 
 #include "DatabaseAccess.h"
 
-// 函數：轉換 FILETIME 到 SQL Server DATETIME 格式 (YYYY-MM-DD HH:MM:SS)
 std::wstring formatFileTimeToSQLDateTime(const FILETIME* ft) {
+    FILETIME localFt;
     SYSTEMTIME st;
-    FileTimeToSystemTime(ft, &st);  // 轉換 FILETIME 為 SYSTEMTIME
 
-    wchar_t buffer[20];
-    swprintf_s(buffer, 20, L"%04d-%02d-%02d %02d:%02d:%02d",
-        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+    // 轉成本地時間
+    FileTimeToLocalFileTime(ft, &localFt);
+    FileTimeToSystemTime(&localFt, &st);
 
-    return std::wstring(buffer);
+    wchar_t date_buf[64];
+    wchar_t time_buf[64];
+
+    if (GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, date_buf, 64, nullptr) &&
+        GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, time_buf, 64)) {
+
+        wchar_t result_buf[128];
+        swprintf(result_buf, 128, L"%s %s.%03d", date_buf, time_buf, st.wMilliseconds);
+        return result_buf;
+    }
+
+    return L"";
 }
 
 std::wstring FormatEventMessage(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, DWORD flags) {
@@ -102,23 +112,18 @@ DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID cont
             file_time.c_str()                                 //日期和時間
         );
 
-        size_t querySize = 1024 + MessageEvent.size();
-        std::wstring insertQuery(querySize, L'\0'); // 預先分配足夠的空間
-
-        // 格式化 SQL 插入語句
-        swprintf_s(&insertQuery[0], querySize,
-            L"INSERT INTO event.dbo.even "
-            L"([關鍵字], [日期和時間], [事件識別碼], [來源], [工作類別], [內容], [LogDate]) "
-            L"VALUES (N'%s', '%s', %d, N'%s', N'%s', N'%s', SYSDATETIME())",
-            MessageKeyword.c_str(),
-            file_time.c_str(),
+        ((DatabaseAccess*)context)->insert_identity_key(
+        L"event.dbo.even", 
+        L"關鍵字,日期和時間,事件識別碼,來源,工作類別,內容,LogDate",
+            MessageKeyword,
+            *(FILETIME*)&ullTimeStamp,
             pRenderedValues[EvtSystemEventID].UInt16Val,
-            MessageTask.c_str(),
-            MessageKeyword.c_str(),
-            MessageEvent.c_str());
+            MessageTask,
+            MessageKeyword,
+            MessageEvent,
+            (SaoFU::SQLCMD)L"SYSDATETIME()"
+        );
 
-        //MessageBoxW(0, insertQuery.c_str(), 0, 0);
-        SaoFU::DataTable data = ((DatabaseAccess*)context)->command(insertQuery);
 
         //sprintf();
         //DA->command();
@@ -154,20 +159,6 @@ int main() {
     std::unique_ptr<DatabaseAccess> DA = std::make_unique<DatabaseAccess>();
     DA->connect(L"DESKTOP-SO1AP2J", L"sa", L"Ww920626@")
         .set_database(L"event");
-
-    const wchar_t* query_string = LR"(
-        SELECT 關鍵字
-        FROM [even] WITH (NOLOCK)
-        WHERE 工作類別 = @Type
-          AND id = @id
-        ORDER BY [LogDate] DESC
-    )";
-
-    SaoFU::DataTable tb = DA->command(query_string, L"Type,id", L"稽核成功", L"5058");
-    std::wcout << tb[0][L"關鍵字"].to_string() << std::endl;
-
-    tb = DA->procedure(L"tblEAP_Procedure", L"Type,id", L"傳統", L"6518");
-    std::wcout << tb[0][L"關鍵字"].to_string() << std::endl;
 
     EVT_HANDLE hSubscription = EvtSubscribe(
         NULL,

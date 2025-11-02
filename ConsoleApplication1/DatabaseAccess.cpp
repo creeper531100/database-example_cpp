@@ -143,86 +143,16 @@ DatabaseAccess&& DatabaseAccess::set_database(const wstring& database) {
     return move(*this);
 }
 
-DataTable DatabaseAccess::command(const wstring& query, const wstring param_name, ...) {
-    wistringstream ss(param_name);
-    wstring token;
-    vector<wstring> tokens;
-    while (getline(ss, token, L',')) {
-        tokens.push_back(token);
-    }
-
-    vector<wstring> params;
-    params.reserve(tokens.size());
-
-    va_list args;
-    va_start(args, param_name);
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        const wchar_t* arg = va_arg(args, const wchar_t*);
-        params.emplace_back(arg);
-    }
-    va_end(args);
-
-    size_t max_len = max_element(params.begin(), params.end(),
-        [](const auto& a, const auto& b) {
-            return a.size() < b.size();
-        })->size();
-
-    wostringstream out;
-
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        if (i > 0) out << L",";
-        out << L'@' << tokens[i] << L" nvarchar(" << max_len << L")";
-    }
-    wstring declare = out.str();
-
-    out.str(L"");
-    out.clear();
-
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        if (i > 0) out << L",";
-        out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
-    }
-
-    wstring values = out.str();
-    wstring exec_query = L"EXEC sp_executesql N'" + query + L"', N'" + declare + L"', " + values;
-
+SaoFU::DataTable DatabaseAccess::procedure(const std::wstring& procedure_name) const {
+    std::wostringstream out;
+    out << L"\n" << "EXEC " << procedure_name << " ";
+    auto exec_query = out.str();
     return command(exec_query);
 }
 
-DataTable DatabaseAccess::procedure(const wstring& procedure_name, const wstring param_name, ...) {
-    wistringstream ss(param_name);
-    wstring token;
-    vector<wstring> tokens;
-    while (getline(ss, token, L',')) {
-        tokens.push_back(token);
-    }
-
-    vector<wstring> params;
-    params.reserve(tokens.size());
-
-    va_list args;
-    va_start(args, param_name);
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        const wchar_t* arg = va_arg(args, const wchar_t*);
-        params.emplace_back(arg);
-    }
-    va_end(args);
-
-    wostringstream out;
-
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        if (i > 0) out << L",";
-        out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
-    }
-
-    wstring values = out.str();
-    wstring exec_query = L"EXEC " + procedure_name + L" " + values;
-
-    return command(exec_query);
-}
 
 // **執行 SQL 指令**
-DataTable DatabaseAccess::command(const wstring& query, const initializer_list<wstring>& params) {
+DataTable DatabaseAccess::command(const wstring& query, const initializer_list<wstring>& params) const {
     StmtHandle h_stmt(h_dbc);
 
     // 1) Prepare：使用 '?' 位置參數
@@ -312,17 +242,6 @@ DataTable DatabaseAccess::command(const wstring& query, const initializer_list<w
                     buf.resize((size_t)len);
                     rc = SQLGetData(h_stmt, col, ctype, buf.data(), (SQLLEN)buf.size(), &len);
                 }
-
-                // switch (ctype) {
-                // case SQL_C_WCHAR:
-                //     len += sizeof(SQLWCHAR);
-                //     break;
-                // case SQL_C_CHAR:
-                //     len += sizeof(SQLCHAR);
-                //     break;
-                // default:
-                //     break;
-                // }
 
                 if (len >= 0 && len <= (SQLLEN)buf.size()) {
                     cell = DataCell(vector<BYTE>(buf.begin(), buf.begin() + len), false, meta);
