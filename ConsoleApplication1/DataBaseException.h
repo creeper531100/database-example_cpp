@@ -7,11 +7,13 @@
 #include <sqlext.h> 
 #include <string>
 
-class DataBaseException {
-    std::wstring message;
-public:
-    DataBaseException(const std::wstring& message, SQLHANDLE hHandle, SQLSMALLINT hType);
-    const wchar_t* what() const noexcept;
-};
+namespace SaoFU {
+    class DataBaseException {
+        std::wstring message;
+    public:
+        DataBaseException(const std::wstring& message, SQLHANDLE hHandle, SQLSMALLINT hType);
+        const wchar_t* what() const noexcept;
+    };
+}
 
 #endif

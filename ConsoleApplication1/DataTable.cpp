@@ -13,8 +13,11 @@
 #include <iomanip>
 #include <unordered_map>
 
-SQLSMALLINT sql_to_ctype(SQLSMALLINT sql_type) {
-    static const std::unordered_map<SQLSMALLINT, SQLSMALLINT> sql_to_ctype_map = {
+using namespace SaoFU;
+using namespace std;
+
+SQLSMALLINT SaoFU::sql_to_ctype(SQLSMALLINT sql_type) {
+    static const unordered_map<SQLSMALLINT, SQLSMALLINT> sql_to_ctype_map = {
         // 文字
         {SQL_CHAR,          SQL_C_CHAR},
         {SQL_VARCHAR,       SQL_C_CHAR},
@@ -52,32 +55,33 @@ SQLSMALLINT sql_to_ctype(SQLSMALLINT sql_type) {
     return SQL_C_BINARY; // fallback
 }
 
-SaoFU::DataCell::DataCell() = default;
+DataCell::DataCell() = default;
 
-SaoFU::DataCell::DataCell(std::vector<BYTE>&& buf, bool is_null, const ColumnMeta& m): buffer(std::move(buf)), null_flag(is_null), meta(m) {
+DataCell::DataCell(vector<BYTE>&& buf, bool is_null, const ColumnMeta& m): buffer(move(buf)), null_flag(is_null), meta(m) {
 }
 
 template <typename T>
-T SaoFU::DataCell::get() const {
+T DataCell::get() const {
     if (null_flag || buffer.size() < sizeof(T)) {
-        throw std::runtime_error("Invalid or NULL data for requested type");
+        throw runtime_error("Invalid or NULL data for requested type");
     }
     return *(const T*)buffer.data();
 }
 
-std::wstring SaoFU::DataCell::to_string() const {
+wstring DataCell::to_string() const {
     if (null_flag || buffer.empty()) return L"(NULL)";
 
     switch (meta.data_type) {
     case SQL_WCHAR:
     case SQL_WVARCHAR:
     case SQL_WLONGVARCHAR:
-        return std::wstring((const wchar_t*)buffer.data(), buffer.size() / sizeof(wchar_t));
+        return get<wstring>();
     case SQL_CHAR:
     case SQL_VARCHAR:
     case SQL_LONGVARCHAR: {
-        std::string ascii_str((const char*)buffer.data(), buffer.size());
-        return std::wstring(ascii_str.begin(), ascii_str.end());
+        string ascii_str((const char*)buffer.data(), buffer.size());
+        ascii_str.append(1, '\0');
+        return wstring(ascii_str.begin(), ascii_str.end());
     }
 
     case SQL_TYPE_DATE: {
@@ -105,7 +109,7 @@ std::wstring SaoFU::DataCell::to_string() const {
         wchar_t date_buf[64], time_buf[64];
         if (GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, date_buf, 64, nullptr) &&
             GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, time_buf, 64)) {
-            std::wstring result = date_buf; result += L" "; result += time_buf; return result;
+            wstring result = date_buf; result += L" "; result += time_buf; return result;
         }
         return L"(Invalid TIMESTAMP)";
     }
@@ -114,17 +118,17 @@ std::wstring SaoFU::DataCell::to_string() const {
     case SQL_VARBINARY:
     case SQL_LONGVARBINARY:
     case 98: {
-        std::wstringstream ss; ss << L"0x" << std::hex << std::setfill(L'0');
-        for (BYTE b : buffer) ss << std::setw(2) << static_cast<int>(b);
+        wstringstream ss; ss << L"0x" << hex << setfill(L'0');
+        for (BYTE b : buffer) ss << setw(2) << static_cast<int>(b);
         return ss.str();
     }
 
-    case SQL_INTEGER:   return std::to_wstring(get<int>());
-    case SQL_SMALLINT:  return std::to_wstring(get<short>());
-    case SQL_BIGINT:    return std::to_wstring(get<long long>());
+    case SQL_INTEGER:   return to_wstring(get<int>());
+    case SQL_SMALLINT:  return to_wstring(get<short>());
+    case SQL_BIGINT:    return to_wstring(get<long long>());
     case SQL_DOUBLE:
     case SQL_FLOAT:
-    case SQL_REAL:      return std::to_wstring(get<double>());
+    case SQL_REAL:      return to_wstring(get<double>());
     case SQL_BIT:       return get<unsigned char>() ? L"true" : L"false";
 
     default:
@@ -132,45 +136,6 @@ std::wstring SaoFU::DataCell::to_string() const {
     }
 }
 
-bool SaoFU::DataCell::is_null() const {
+bool DataCell::is_null() const {
     return null_flag;
-}
-
-SQLSMALLINT SaoFU::sql_to_ctype(SQLSMALLINT sql_type) {
-    static const std::unordered_map<SQLSMALLINT, SQLSMALLINT> sql_to_ctype_map = {
-            // 文字
-            {SQL_CHAR,          SQL_C_CHAR},
-            {SQL_VARCHAR,       SQL_C_CHAR},
-            {SQL_LONGVARCHAR,   SQL_C_CHAR},
-            {SQL_WCHAR,         SQL_C_WCHAR},
-            {SQL_WVARCHAR,      SQL_C_WCHAR},
-            {SQL_WLONGVARCHAR,  SQL_C_WCHAR},
-
-            // 數值
-            {SQL_TINYINT,       SQL_C_UTINYINT},
-            {SQL_SMALLINT,      SQL_C_SSHORT},
-            {SQL_INTEGER,       SQL_C_SLONG},
-            {SQL_BIGINT,        SQL_C_SBIGINT},
-            {SQL_REAL,          SQL_C_FLOAT},
-            {SQL_FLOAT,         SQL_C_DOUBLE},
-            {SQL_DOUBLE,        SQL_C_DOUBLE},
-            {SQL_BIT,           SQL_C_BIT},
-
-            // 日期時間
-            {SQL_TYPE_DATE,     SQL_C_TYPE_DATE},
-            {SQL_TYPE_TIME,     SQL_C_TYPE_TIME},
-            {SQL_TYPE_TIMESTAMP,SQL_C_TYPE_TIMESTAMP},
-
-            // Binary / rowversion
-            {SQL_BINARY,        SQL_C_BINARY},
-            {SQL_VARBINARY,     SQL_C_BINARY},
-            {SQL_LONGVARBINARY, SQL_C_BINARY},
-            {98,                SQL_C_BINARY} // SQL_ROWVERSION
-        };
-
-    auto it = sql_to_ctype_map.find(sql_type);
-    if (it != sql_to_ctype_map.end()) {
-        return it->second;
-    }
-    return SQL_C_BINARY; // fallback
 }

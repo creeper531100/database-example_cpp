@@ -37,7 +37,9 @@ namespace SaoFU {
 
     template<>
     inline std::wstring DataCell::get<std::wstring>() const {
-        return std::wstring((const wchar_t*)buffer.data(), buffer.size() / sizeof(wchar_t));
+        std::wstring ws((const wchar_t*)buffer.data(), buffer.size() / sizeof(wchar_t));
+        ws.append(2, L'\0'); // ¸É¨â­Ó null terminator
+        return ws;
     }
 
     SQLSMALLINT sql_to_ctype(SQLSMALLINT sql_type);

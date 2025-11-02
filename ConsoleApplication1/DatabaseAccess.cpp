@@ -13,6 +13,9 @@
 
 #include "DataBaseException.h"
 
+using namespace SaoFU;
+using namespace std;
+
 class StmtHandle {
     SQLHSTMT h_ = nullptr;
 public:
@@ -29,7 +32,7 @@ public:
     StmtHandle& operator=(const StmtHandle&) = delete;
     StmtHandle(StmtHandle&& other) noexcept : h_(other.h_) { other.h_ = nullptr; }
     StmtHandle& operator=(StmtHandle&& other) noexcept {
-        if (this != &other) { std::swap(h_, other.h_); }
+        if (this != &other) { swap(h_, other.h_); }
         return *this;
     }
     operator SQLHSTMT() const { return h_; }
@@ -84,9 +87,9 @@ DatabaseAccess& DatabaseAccess::operator=(DatabaseAccess&& other) noexcept {
 }
 
 // **連接資料庫**
-bool DatabaseAccess::connect(const std::wstring& connection_str) {
+bool DatabaseAccess::connect(const wstring& connection_str) {
     if (is_connected) {
-        std::wcerr << L"Already connected to database.\n";
+        wcerr << L"Already connected to database.\n";
         return false;
     }
 
@@ -98,7 +101,7 @@ bool DatabaseAccess::connect(const std::wstring& connection_str) {
 
     if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
         is_connected = true;
-        std::wcout << L"Connected to database successfully!\n";
+        wcout << L"Connected to database successfully!\n";
         return true;
     }
     else {
@@ -107,9 +110,9 @@ bool DatabaseAccess::connect(const std::wstring& connection_str) {
 }
 
 
-DatabaseAccess&& DatabaseAccess::connect(const std::wstring& server, const std::wstring& uid, const std::wstring& pwd) {
+DatabaseAccess&& DatabaseAccess::connect(const wstring& server, const wstring& uid, const wstring& pwd) {
     if (is_connected){
-        return std::move(*this);
+        return move(*this);
     }
 
     SQLWCHAR cs[1024];
@@ -123,32 +126,32 @@ DatabaseAccess&& DatabaseAccess::connect(const std::wstring& server, const std::
 
     if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
         is_connected = true;
-        std::wcout << L"Connected to database successfully!\n";
+        wcout << L"Connected to database successfully!\n";
     }
     else {
         throw DataBaseException(L"Failed to connect to database.\n", h_dbc, SQL_HANDLE_DBC);
     }
 
-    return std::move(*this);
+    return move(*this);
 }
 
 
-DatabaseAccess&& DatabaseAccess::set_database(const std::wstring& database) {
-    std::wstring useDb = L"USE " + database;
+DatabaseAccess&& DatabaseAccess::set_database(const wstring& database) {
+    wstring useDb = L"USE " + database;
     StmtHandle h_stmt(h_dbc);
     SQLExecDirectW(h_stmt, (SQLWCHAR*)useDb.c_str(), SQL_NTS);
-    return std::move(*this);
+    return move(*this);
 }
 
-SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::wstring param_name, ...) {
-    std::wistringstream ss(param_name);
-    std::wstring token;
-    std::vector<std::wstring> tokens;
-    while (std::getline(ss, token, L',')) {
+DataTable DatabaseAccess::command(const wstring& query, const wstring param_name, ...) {
+    wistringstream ss(param_name);
+    wstring token;
+    vector<wstring> tokens;
+    while (getline(ss, token, L',')) {
         tokens.push_back(token);
     }
 
-    std::vector<std::wstring> params;
+    vector<wstring> params;
     params.reserve(tokens.size());
 
     va_list args;
@@ -159,18 +162,18 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::w
     }
     va_end(args);
 
-    size_t max_len = std::max_element(params.begin(), params.end(),
+    size_t max_len = max_element(params.begin(), params.end(),
         [](const auto& a, const auto& b) {
             return a.size() < b.size();
         })->size();
 
-    std::wostringstream out;
+    wostringstream out;
 
     for (size_t i = 0; i < tokens.size(); ++i) {
         if (i > 0) out << L",";
         out << L'@' << tokens[i] << L" nvarchar(" << max_len << L")";
     }
-    std::wstring declare = out.str();
+    wstring declare = out.str();
 
     out.str(L"");
     out.clear();
@@ -180,21 +183,21 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::w
         out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
     }
 
-    std::wstring values = out.str();
-    std::wstring exec_query = L"EXEC sp_executesql N'" + query + L"', N'" + declare + L"', " + values;
+    wstring values = out.str();
+    wstring exec_query = L"EXEC sp_executesql N'" + query + L"', N'" + declare + L"', " + values;
 
     return command(exec_query);
 }
 
-SaoFU::DataTable DatabaseAccess::procedure(const std::wstring& procedure_name, const std::wstring param_name, ...) {
-    std::wistringstream ss(param_name);
-    std::wstring token;
-    std::vector<std::wstring> tokens;
-    while (std::getline(ss, token, L',')) {
+DataTable DatabaseAccess::procedure(const wstring& procedure_name, const wstring param_name, ...) {
+    wistringstream ss(param_name);
+    wstring token;
+    vector<wstring> tokens;
+    while (getline(ss, token, L',')) {
         tokens.push_back(token);
     }
 
-    std::vector<std::wstring> params;
+    vector<wstring> params;
     params.reserve(tokens.size());
 
     va_list args;
@@ -205,21 +208,21 @@ SaoFU::DataTable DatabaseAccess::procedure(const std::wstring& procedure_name, c
     }
     va_end(args);
 
-    std::wostringstream out;
+    wostringstream out;
 
     for (size_t i = 0; i < tokens.size(); ++i) {
         if (i > 0) out << L",";
         out << L'@' << tokens[i] << L"=N'" << params[i] << L"'";
     }
 
-    std::wstring values = out.str();
-    std::wstring exec_query = L"EXEC " + procedure_name + L" " + values;
+    wstring values = out.str();
+    wstring exec_query = L"EXEC " + procedure_name + L" " + values;
 
     return command(exec_query);
 }
 
 // **執行 SQL 指令**
-SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::initializer_list<std::wstring>& params) {
+DataTable DatabaseAccess::command(const wstring& query, const initializer_list<wstring>& params) {
     StmtHandle h_stmt(h_dbc);
 
     // 1) Prepare：使用 '?' 位置參數
@@ -228,7 +231,7 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
     }
 
     // 2) 綁定所有參數
-    std::vector<SQLLEN> ind(params.size(), SQL_NTS);
+    vector<SQLLEN> ind(params.size(), SQL_NTS);
     SQLUSMALLINT i = 0;
     for (const auto& row : params) {
         SQLRETURN ret = SQLBindParameter(
@@ -237,7 +240,7 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
             SQL_PARAM_INPUT,
             SQL_C_WCHAR,
             SQL_WVARCHAR,
-            (SQLULEN)std::max<size_t>(row.size(), 1),
+            (SQLULEN)max<size_t>(row.size(), 1),
             0,
             (SQLPOINTER)row.c_str(),
             0,
@@ -255,8 +258,8 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
         throw DataBaseException(L"SQLExecute failed", h_stmt, SQL_HANDLE_STMT);
     }
 
-    std::vector<SaoFU::ColumnMeta> col_meta;
-    SaoFU::DataTable table;
+    vector<ColumnMeta> col_meta;
+    DataTable table;
 
     SQLSMALLINT col_count = 0;
     SQLNumResultCols(h_stmt, &col_count);
@@ -265,7 +268,7 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
         // 欄位描述
         for (SQLUSMALLINT col = 1; col <= col_count; ++col) {
             SQLWCHAR col_name[128] = {};
-            SaoFU::ColumnMeta meta{};
+            ColumnMeta meta{};
             SQLDescribeColW(
                 h_stmt,
                 col,
@@ -278,7 +281,7 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
                 &meta.nullable
             );
 
-            meta.name = std::wstring(col_name);
+            meta.name = wstring(col_name);
             col_meta.push_back(meta);
         }
 
@@ -288,20 +291,20 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
                 break;
             }
 
-            SaoFU::DataRow row;
+            DataRow row;
             for (SQLUSMALLINT col = 1; col <= col_count; ++col) {
                 SQLLEN len = 0;
-                std::vector<BYTE> buf(128, '\0');
+                vector<BYTE> buf(128, '\0');
 
-                const SaoFU::ColumnMeta& meta = col_meta[col - 1];
-                SQLSMALLINT ctype = SaoFU::sql_to_ctype(meta.data_type);
+                const ColumnMeta& meta = col_meta[col - 1];
+                SQLSMALLINT ctype = sql_to_ctype(meta.data_type);
                 SQLRETURN rc = SQLGetData(h_stmt, col, ctype, buf.data(), (SQLLEN)buf.size(), &len);
-                SaoFU::DataCell cell;
+                DataCell cell;
 
                 bool is_success = (rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO);
                 if (is_success && len == SQL_NULL_DATA) {
-                    cell = SaoFU::DataCell({}, true, meta);
-                    row.emplace(meta.name, std::move(cell));
+                    cell = DataCell({}, true, meta);
+                    row.emplace(meta.name, move(cell));
                     continue;
                 }
 
@@ -310,27 +313,27 @@ SaoFU::DataTable DatabaseAccess::command(const std::wstring& query, const std::i
                     rc = SQLGetData(h_stmt, col, ctype, buf.data(), (SQLLEN)buf.size(), &len);
                 }
 
-                switch (ctype) {
-                case SQL_C_WCHAR:
-                    len += sizeof(SQLWCHAR);
-                    break;
-                case SQL_C_CHAR:
-                    len += sizeof(SQLCHAR);
-                    break;
-                default:
-                    break;
-                }
+                // switch (ctype) {
+                // case SQL_C_WCHAR:
+                //     len += sizeof(SQLWCHAR);
+                //     break;
+                // case SQL_C_CHAR:
+                //     len += sizeof(SQLCHAR);
+                //     break;
+                // default:
+                //     break;
+                // }
 
                 if (len >= 0 && len <= (SQLLEN)buf.size()) {
-                    cell = SaoFU::DataCell(std::vector<BYTE>(buf.begin(), buf.begin() + len), false, meta);
+                    cell = DataCell(vector<BYTE>(buf.begin(), buf.begin() + len), false, meta);
                 }
                 else {
-                    cell = SaoFU::DataCell(std::move(buf), false, meta);
+                    cell = DataCell(move(buf), false, meta);
                 }
 
-                row.emplace(meta.name, std::move(cell));
+                row.emplace(meta.name, move(cell));
             }
-            table.emplace_back(std::move(row));
+            table.emplace_back(move(row));
         }
     }
 
@@ -343,6 +346,6 @@ void DatabaseAccess::disconnect() {
     if (is_connected) {
         SQLDisconnect(h_dbc);
         is_connected = false;
-        std::wcout << L"Disconnected from database.\n";
+        wcout << L"Disconnected from database.\n";
     }
 }

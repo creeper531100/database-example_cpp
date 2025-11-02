@@ -3,16 +3,19 @@
 #include <iostream>
 #include <sstream>
 
-DataBaseException::DataBaseException(const std::wstring& message, SQLHANDLE hHandle, SQLSMALLINT hType) {
+using namespace SaoFU;
+using namespace std;
+
+DataBaseException::DataBaseException(const wstring& message, SQLHANDLE hHandle, SQLSMALLINT hType) {
     SQLSMALLINT iRec = 1;
     SQLINTEGER  iError;
     WCHAR       wszMessage[1000] = { 0 };
     WCHAR       wszState[SQL_SQLSTATE_SIZE + 1];
 
-    std::wostringstream oss;
+    wostringstream oss;
 
     if (!message.empty()) {
-        oss << message << std::endl;
+        oss << message << endl;
     }
 
     while (SQLGetDiagRec(hType, hHandle, iRec, wszState, &iError, wszMessage, (SQLSMALLINT)(sizeof(wszMessage) / sizeof(WCHAR)), (SQLSMALLINT*)NULL) == SQL_SUCCESS) {
@@ -29,7 +32,7 @@ DataBaseException::DataBaseException(const std::wstring& message, SQLHANDLE hHan
     }
 
     this->message = oss.str();
-    std::wcerr << this->message << std::endl;
+    wcerr << this->message << endl;
 }
 
 

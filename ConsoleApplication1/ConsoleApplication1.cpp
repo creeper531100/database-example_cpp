@@ -156,7 +156,7 @@ int main() {
         .set_database(L"event");
 
     const wchar_t* query_string = LR"(
-        SELECT *
+        SELECT 關鍵字
         FROM [even] WITH (NOLOCK)
         WHERE 工作類別 = @Type
           AND id = @id
@@ -164,10 +164,10 @@ int main() {
     )";
 
     SaoFU::DataTable tb = DA->command(query_string, L"Type,id", L"稽核成功", L"5058");
-    std::wcout << tb[0][L"內容"].to_string() << std::endl;
+    std::wcout << tb[0][L"關鍵字"].to_string() << std::endl;
 
     tb = DA->procedure(L"tblEAP_Procedure", L"Type,id", L"傳統", L"6518");
-    std::wcout << tb[0][L"內容"].to_string() << std::endl;
+    std::wcout << tb[0][L"關鍵字"].to_string() << std::endl;
 
     EVT_HANDLE hSubscription = EvtSubscribe(
         NULL,
