@@ -48,14 +48,26 @@ std::wstring FormatEventMessage(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, DWORD f
             }
         }
         else {
-            return L"Failed to get required buffer size. Error: " + std::to_wstring(GetLastError());
+            LPVOID lpMsgBuf;
+            DWORD bufLen = FormatMessageW(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                FORMAT_MESSAGE_FROM_SYSTEM |
+                FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL,
+                GetLastError(),
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPWSTR)&lpMsgBuf,
+                0, 
+                NULL
+            );
+            return L"Failed to get required buffer size. Error: " + std::wstring((LPWSTR)lpMsgBuf) + L" " + std::to_wstring(GetLastError());
         }
     }
     return L"";
 }
 
 // 事件订阅回调函数
-DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID context, EVT_HANDLE hEvent) {
+DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, DatabaseAccess* context, EVT_HANDLE hEvent) {
     if (action == EvtSubscribeActionDeliver) {
         std::wcout << L"\n=== New Event Received ===\n";
         DWORD status = ERROR_SUCCESS;
@@ -112,7 +124,7 @@ DWORD WINAPI EvtSubscribeCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID cont
             file_time.c_str()                                 //日期和時間
         );
 
-        ((DatabaseAccess*)context)->insert_identity_key(
+        context->insert_identity_key(
         L"event.dbo.even", 
         L"關鍵字,日期和時間,事件識別碼,來源,工作類別,內容,LogDate",
             MessageKeyword,
@@ -167,7 +179,7 @@ int main() {
         query,
         NULL,
         DA.get(),
-        EvtSubscribeCallback,
+        (EVT_SUBSCRIBE_CALLBACK)EvtSubscribeCallback,
         EvtSubscribeToFutureEvents
     );
     

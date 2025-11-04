@@ -58,10 +58,10 @@ std::wstring SaoFU::emit_value(const SYSTEMTIME& st) {
     wchar_t date_buf[64] = { 0 };
     wchar_t time_fmt[64] = { 0 };
 
-    GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, date_buf, 64, nullptr);
+    GetDateFormatEx(LOCALE_NAME_INVARIANT, 0, &st, nullptr, date_buf, 64, nullptr);
 
     wchar_t time_buf[64] = { 0 };
-    if (GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, time_buf, 64)) {
+    if (GetTimeFormatEx(LOCALE_NAME_INVARIANT, 0, &st, nullptr, time_buf, 64)) {
         swprintf(time_fmt, 128, L"%s.%03d", time_buf, st.wMilliseconds);
     }
 
